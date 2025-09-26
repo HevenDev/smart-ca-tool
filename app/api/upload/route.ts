@@ -17,12 +17,13 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       body: formData,
     });
-    
-    const processResult = await processResponse.json();
-    
+
     if (!processResponse.ok) {
-      throw new Error(processResult.error || 'Processing failed');
+      const errorText = await processResponse.text();
+      throw new Error(`Processing failed: ${errorText}`);
     }
+
+    const processResult = await processResponse.json();
     
     return NextResponse.json({
       message: 'File uploaded and processed successfully',

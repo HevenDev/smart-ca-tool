@@ -52,8 +52,7 @@ export default function FileUpload({ onFileProcessed, onProcessingState, isProce
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
-      'image/png',
-      'image/jpg'
+      'image/png'
     ];
 
     if (!allowedTypes.includes(file.type)) {

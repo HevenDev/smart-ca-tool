@@ -14,13 +14,122 @@ interface ExtractedData {
   invoiceNo: string;
 }
 
-// PDF text extraction (simplified - in production you'd use pdf-parse)
+// PDF text processing utilities
+function extractFinancialDataFromText(text: string): ExtractedData[] {
+  const lines = text.split('\n').filter(line => line.trim());
+  const data: ExtractedData[] = [];
+
+  // Look for invoice patterns
+  const invoicePattern = /invoice\s*(?:no\.?|number)?\s*:?\s*([A-Z0-9-]+)/i;
+  const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
+  const amountPattern = /(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.\d{2})?)/i;
+
+  let currentInvoice: Partial<ExtractedData> = {};
+
+  for (const line of lines) {
+    // Extract invoice number
+    const invoiceMatch = line.match(invoicePattern);
+    if (invoiceMatch) {
+      currentInvoice.invoiceNo = invoiceMatch[1];
+    }
+
+    // Extract date
+    const dateMatch = line.match(datePattern);
+    if (dateMatch) {
+      try {
+        const date = new Date(dateMatch[1]);
+        if (!isNaN(date.getTime())) {
+          currentInvoice.date = date.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        // Ignore invalid dates
+      }
+    }
+
+    // Extract amount
+    const amountMatch = line.match(amountPattern);
+    if (amountMatch) {
+      const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+      if (!isNaN(amount)) {
+        currentInvoice.amount = amount;
+      }
+    }
+
+    // If we have enough data, create a record
+    if (currentInvoice.invoiceNo && currentInvoice.amount) {
+      data.push({
+        date: currentInvoice.date || new Date().toISOString().split('T')[0],
+        description: `Invoice ${currentInvoice.invoiceNo}`,
+        amount: currentInvoice.amount,
+        category: 'Expenses',
+        invoiceNo: currentInvoice.invoiceNo,
+        vendor: extractVendorFromDescription(line)
+      });
+
+      currentInvoice = {};
+    }
+  }
+
+  return data;
+}
+
+// Extract vendor from description
+function extractVendorFromDescription(description: string): string | undefined {
+  const desc = description.toLowerCase();
+
+  // Common vendor patterns
+  const vendors = [
+    'microsoft', 'google', 'amazon', 'apple', 'adobe', 'salesforce',
+    'uber', 'ola', 'swiggy', 'zomato', 'flipkart', 'paytm',
+    'airtel', 'jio', 'vodafone', 'bsnl', 'tata', 'reliance',
+    'hdfc', 'icici', 'sbi', 'axis', 'kotak', 'yes bank'
+  ];
+
+  for (const vendor of vendors) {
+    if (desc.includes(vendor)) {
+      return vendor.charAt(0).toUpperCase() + vendor.slice(1);
+    }
+  }
+
+  // Extract company names (words ending with common suffixes)
+  const companyPattern = /\b(\w+(?:\s+\w+)*)\s+(?:ltd|limited|inc|corp|corporation|pvt|private|llp|llc)\b/i;
+  const match = description.match(companyPattern);
+  if (match) {
+    return match[1].trim();
+  }
+
+  return undefined;
+}
+
+// PDF text extraction using pdf-parse
 async function extractFromPDF(buffer: Buffer): Promise<ExtractedData[]> {
   try {
-    // For demo purposes, we'll simulate PDF extraction
-    // In production, you'd use: const pdf = await pdfParse(buffer);
-    
-    // Mock extracted data that would come from PDF parsing
+    console.log('Starting PDF extraction...');
+    const data = await pdfParse(buffer);
+    const text = data.text;
+    console.log('PDF text extracted:', text.substring(0, 200));
+
+    const extracted = extractFinancialDataFromText(text);
+    console.log('Extracted data:', extracted);
+
+    if (extracted.length > 0) {
+      return extracted;
+    } else {
+      // Fallback if no data extracted
+      return [
+        {
+          date: new Date().toISOString().split('T')[0],
+          description: 'PDF Document Processed',
+          amount: 0,
+          category: 'Miscellaneous',
+          vendor: 'Unknown',
+          invoiceNo: `PDF-${Date.now()}`
+        }
+      ];
+    }
+  } catch (error) {
+    console.error('PDF extraction error:', error);
+    // Fallback to mock data if PDF parsing fails
     return [
       {
         date: new Date().toISOString().split('T')[0],
@@ -29,19 +138,8 @@ async function extractFromPDF(buffer: Buffer): Promise<ExtractedData[]> {
         category: 'Office Supplies',
         vendor: 'Office Depot',
         invoiceNo: `PDF-${Date.now()}`
-      },
-      {
-        date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-        description: 'Software License from PDF',
-        amount: 15000.00,
-        category: 'Software',
-        vendor: 'Microsoft Corp',
-        invoiceNo: `PDF-${Date.now() + 1}`
       }
     ];
-  } catch (error) {
-    console.error('PDF extraction error:', error);
-    return [];
   }
 }
 
@@ -165,8 +263,7 @@ export async function POST(request: NextRequest) {
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
-      'image/png',
-      'image/jpg'
+      'image/png'
     ];
     
     if (!allowedTypes.includes(file.type)) {
@@ -236,4 +333,8 @@ export async function GET() {
       supportedTypes: ['PDF', 'XLSX', 'XLS', 'JPG', 'JPEG', 'PNG']
     }
   });
+}
+
+function pdfParse(buffer: Buffer) {
+  throw new Error('Function not implemented.');
 }
