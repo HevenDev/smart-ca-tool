@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import FileUpload from '@/components/FileUpload';
 import DataGrid from '@/components/DataGrid';
+import BankStatementGrid from '@/components/BankStatementGrid';
 import TallyIntegration from '@/components/TallyIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Upload, Database, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FileText, Upload, Database, Send, CreditCard } from 'lucide-react';
 
 export interface ExtractedData {
   date: string;
@@ -18,10 +20,34 @@ export interface ExtractedData {
   invoiceNo: string;
 }
 
+interface BankStatement {
+  bankName: string;
+  accountNumber: string;
+  branch: string;
+  ifscCode: string;
+  currency: string;
+  statementPeriod: {
+    fromDate: string;
+    toDate: string;
+  };
+  transactions: {
+    date: string;
+    description: string;
+    referenceNumber: string;
+    voucherType: string;
+    ledgerName: string;
+    debitAmount: number;
+    creditAmount: number;
+    balance: number;
+    narration: string;
+  }[];
+}
+
 export default function Home() {
   const [extractedData, setExtractedData] = useState<ExtractedData[]>([]);
   const [currentFile, setCurrentFile] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bankStatementData, setBankStatementData] = useState<BankStatement | null>(null);
 
   const handleFileProcessed = (data: ExtractedData[], filename: string) => {
     setExtractedData(data);
@@ -30,6 +56,10 @@ export default function Home() {
 
   const handleProcessingState = (processing: boolean) => {
     setIsProcessing(processing);
+  };
+
+  const handleBankStatementData = (data: BankStatement) => {
+    setBankStatementData(data);
   };
 
   return (
@@ -96,12 +126,10 @@ export default function Home() {
           <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0">
             <CardContent className="p-4">
               <div className="flex items-center space-x-3">
-                <FileText className="w-8 h-8 opacity-80" />
+                <CreditCard className="w-8 h-8 opacity-80" />
                 <div>
-                  <p className="text-orange-100 text-sm">Current File</p>
-                  <p className="text-sm font-medium truncate">
-                    {currentFile || 'No file processed'}
-                  </p>
+                  <p className="text-orange-100 text-sm">Bank Statements</p>
+                  <p className="text-2xl font-bold">{bankStatementData ? 1 : 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -110,12 +138,15 @@ export default function Home() {
 
         {/* Main Tabs */}
         <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-white shadow-sm">
+          <TabsList className="grid w-full grid-cols-4 bg-white shadow-sm">
             <TabsTrigger value="upload" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               File Upload
             </TabsTrigger>
             <TabsTrigger value="data" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Data View
+            </TabsTrigger>
+            <TabsTrigger value="bank" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+              Bank Statement
             </TabsTrigger>
             <TabsTrigger value="tally" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Tally Integration
@@ -155,11 +186,103 @@ export default function Home() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <DataGrid 
-                  data={extractedData} 
+                <DataGrid
+                  data={extractedData}
                   onDataChange={setExtractedData}
                   filename={currentFile}
                 />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="bank" className="space-y-6">
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center space-x-2">
+                  <CreditCard className="w-5 h-5 text-blue-600" />
+                  <span>Bank Statement View</span>
+                </CardTitle>
+                <CardDescription>
+                  View and edit bank statement data in Excel-like format
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {bankStatementData ? (
+                  <BankStatementGrid
+                    data={bankStatementData}
+                    onDataChange={setBankStatementData}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Bank Statement Data</h3>
+                    <p className="text-gray-600 mb-4">
+                      Bank statement data will appear here when received.
+                    </p>
+                    <Button
+                      onClick={() => handleBankStatementData({
+                        bankName: "HDFC Bank",
+                        accountNumber: "1234567890",
+                        branch: "MG Road Branch",
+                        ifscCode: "HDFC0001234",
+                        currency: "INR",
+                        statementPeriod: {
+                          fromDate: "2025-09-01",
+                          toDate: "2025-09-30"
+                        },
+                        transactions: [
+                          {
+                            date: "2025-09-02",
+                            description: "NEFT Credit - Salary",
+                            referenceNumber: "NEFT12345",
+                            voucherType: "Receipt",
+                            ledgerName: "Salary Account",
+                            debitAmount: 0.0,
+                            creditAmount: 50000.0,
+                            balance: 150000.0,
+                            narration: "Monthly salary credited"
+                          },
+                          {
+                            date: "2025-09-05",
+                            description: "ATM Withdrawal",
+                            referenceNumber: "ATM56789",
+                            voucherType: "Payment",
+                            ledgerName: "Cash Withdrawal",
+                            debitAmount: 10000.0,
+                            creditAmount: 0.0,
+                            balance: 140000.0,
+                            narration: "Cash withdrawn from ATM"
+                          },
+                          {
+                            date: "2025-09-10",
+                            description: "Cheque Deposit",
+                            referenceNumber: "CHQ99887",
+                            voucherType: "Receipt",
+                            ledgerName: "Cheque Collection",
+                            debitAmount: 0.0,
+                            creditAmount: 20000.0,
+                            balance: 160000.0,
+                            narration: "Cheque deposited"
+                          },
+                          {
+                            date: "2025-09-15",
+                            description: "Online Bill Payment - Electricity",
+                            referenceNumber: "ONL44567",
+                            voucherType: "Payment",
+                            ledgerName: "Electricity Expenses",
+                            debitAmount: 5000.0,
+                            creditAmount: 0.0,
+                            balance: 155000.0,
+                            narration: "Electricity bill paid via net banking"
+                          }
+                        ]
+                      })}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Load Sample Data
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
